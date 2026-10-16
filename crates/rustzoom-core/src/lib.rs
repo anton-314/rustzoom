@@ -6,5 +6,6 @@
 
 pub mod config;
 pub mod geometry;
+pub mod i18n;
 pub mod names;
 pub mod zoom;

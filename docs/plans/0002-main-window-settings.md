@@ -31,7 +31,7 @@ and the UI language (English/German). Settings apply immediately and are saved.
 ## Steps
 - [x] 1. core: serde for `Config` (+ `enabled`, `language`, `cycle_hotkey`), `Config::sanitized()`,
        TOML load/save functions (path passed in, atomic write, `.bak` on parse error), VK/mouse display names.
-- [ ] 2. core: `i18n` with `Language` and `Text`, `text(lang, Text)`.
+- [x] 2. core: `i18n` with `Language` and `Text`, `text(lang, Text)`.
 - [ ] 3. Engine on its own thread: move app state into `engine.rs`, command channel (`ApplyConfig`,
        `SetEnabled`, `Quit`) with wake-up message, cycle-level hotkey, stop/start capture on off/on, live
        resize. `main` still has no GUI: loads `config.toml`, runs the engine, so it can be tested by editing the file.
