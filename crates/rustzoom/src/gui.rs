@@ -1,6 +1,8 @@
 //! The main window (ADR 0003): edits the config, hands every change to the engine and saves it.
 
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 
 use eframe::egui;
@@ -14,7 +16,7 @@ use rustzoom_core::zoom::ZoomMode;
 use tracing::{info, warn};
 use windows::Win32::Globalization::GetUserDefaultUILanguage;
 
-use crate::engine::{Command, EngineHandle};
+use crate::engine::{BindTarget, Command, EngineHandle, Event};
 
 /// Changes are written at most this often while the user drags a slider.
 const SAVE_DELAY: Duration = Duration::from_millis(500);
@@ -32,11 +34,17 @@ pub fn run(config: Config, path: PathBuf) -> anyhow::Result<()> {
     eframe::run_native(
         "rustzoom",
         options,
-        Box::new(move |_cc| {
+        Box::new(move |cc| {
+            let (events_tx, events) = mpsc::channel();
+            let ctx = cc.egui_ctx.clone();
+            let sink = Arc::new(move |event| {
+                let _ = events_tx.send(event);
+                ctx.request_repaint();
+            });
             // Started only now, after winit registered its Raw Input, so the engine's
             // registration wins (ADR 0003).
-            let engine = EngineHandle::spawn(config.clone())?;
-            Ok(Box::new(MainWindow::new(config, path, engine)))
+            let engine = EngineHandle::spawn(config.clone(), sink)?;
+            Ok(Box::new(MainWindow::new(config, path, engine, events)))
         }),
     )
     .map_err(|err| anyhow::anyhow!("main window: {err}"))
@@ -51,19 +59,71 @@ struct MainWindow {
     path: PathBuf,
     /// First unsaved change, if any.
     dirty_since: Option<Instant>,
+    /// Hotkey currently waiting for a key press.
+    binding: Option<BindTarget>,
     engine: EngineHandle,
+    events: Receiver<Event>,
 }
 
 impl MainWindow {
-    fn new(config: Config, path: PathBuf, engine: EngineHandle) -> Self {
+    fn new(config: Config, path: PathBuf, engine: EngineHandle, events: Receiver<Event>) -> Self {
         Self {
             sent: config.clone(),
             saved: config.clone(),
             config,
             path,
             dirty_since: None,
+            binding: None,
             engine,
+            events,
         }
+    }
+
+    fn handle_events(&mut self, ctx: &egui::Context) {
+        while let Ok(event) = self.events.try_recv() {
+            match event {
+                Event::Bound(BindTarget::Zoom, key) => self.config.hotkey = key,
+                Event::Bound(BindTarget::Cycle, key) => self.config.cycle_hotkey = Some(key),
+                Event::BindingCancelled => {}
+                Event::Stopped => {
+                    warn!("engine stopped, closing main window");
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            }
+            if matches!(event, Event::Bound(..) | Event::BindingCancelled) {
+                self.binding = None;
+            }
+        }
+    }
+
+    /// Current key name plus "Change…", or the "press a key" prompt while binding.
+    fn key_row(&mut self, ui: &mut egui::Ui, lang: Language, target: BindTarget) {
+        let current = match target {
+            BindTarget::Zoom => Some(self.config.hotkey),
+            BindTarget::Cycle => self.config.cycle_hotkey,
+        };
+        ui.horizontal(|ui| {
+            if self.binding == Some(target) {
+                ui.label(egui::RichText::new(text(lang, Text::PressKey)).italics());
+                return;
+            }
+            let name = current.map_or_else(|| text(lang, Text::NoKey).to_owned(), hotkey_name);
+            ui.label(egui::RichText::new(name).monospace());
+            let change = ui.add_enabled(
+                self.binding.is_none(),
+                egui::Button::new(text(lang, Text::Change)),
+            );
+            if change.clicked() {
+                self.binding = Some(target);
+                self.engine.send(Command::StartBinding(target));
+            }
+            if target == BindTarget::Cycle
+                && current.is_some()
+                && ui.small_button(text(lang, Text::Clear)).clicked()
+            {
+                self.config.cycle_hotkey = None;
+            }
+        });
     }
 
     fn language(&self) -> Language {
@@ -119,7 +179,7 @@ impl MainWindow {
             .spacing([16.0, 10.0])
             .show(ui, |ui| {
                 ui.label(tr(Text::ZoomKey));
-                ui.label(egui::RichText::new(hotkey_name(self.config.hotkey)).monospace());
+                self.key_row(ui, lang, BindTarget::Zoom);
                 ui.end_row();
 
                 ui.label(tr(Text::Mode));
@@ -138,18 +198,7 @@ impl MainWindow {
                 ui.end_row();
 
                 ui.label(tr(Text::CycleKey));
-                ui.horizontal(|ui| {
-                    let name = self
-                        .config
-                        .cycle_hotkey
-                        .map_or_else(|| tr(Text::NoKey).to_owned(), hotkey_name);
-                    ui.label(egui::RichText::new(name).monospace());
-                    if self.config.cycle_hotkey.is_some()
-                        && ui.small_button(tr(Text::Clear)).clicked()
-                    {
-                        self.config.cycle_hotkey = None;
-                    }
-                });
+                self.key_row(ui, lang, BindTarget::Cycle);
                 ui.end_row();
 
                 ui.label(tr(Text::ScopeSize));
@@ -230,8 +279,9 @@ impl MainWindow {
 
 impl eframe::App for MainWindow {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ui, |ui| self.settings(ui));
         let ctx = ui.ctx().clone();
+        self.handle_events(&ctx);
+        egui::CentralPanel::default().show(ui, |ui| self.settings(ui));
         self.sync(&ctx);
     }
 
