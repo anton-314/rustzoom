@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 rustzoom: hotkey-triggered scope overlay that magnifies the screen center while playing the game Rust (Facepunch). Windows 11 only, public, GPL-3.0. The user communicates in German; reply in German. Code, comments, commit messages and repo docs are English.
 
-Read `docs/adr/0001-tech-stack-and-zoom-approach.md` before changing anything architectural.
+Read the ADRs in `docs/adr/` before changing anything architectural (0003 supersedes parts of 0001).
 
 ## Hard rules
 
@@ -18,9 +18,14 @@ Read `docs/adr/0001-tech-stack-and-zoom-approach.md` before changing anything ar
 
 Cargo workspace, two crates:
 
-- `crates/rustzoom-core`: platform-independent logic (config model, hotkey/zoom state machine with hold/toggle/levels, crop/scale geometry). No Windows dependencies, so it is unit-tested on Linux/WSL. Put as much logic here as possible.
-- `crates/rustzoom`: the Windows binary. Windows-only code sits behind `#[cfg(windows)]`, and Windows deps go under `[target.'cfg(windows)'.dependencies]`, so the workspace still compiles and tests on Linux. Planned parts: Windows.Graphics.Capture of the monitor → D3D11 texture → center crop rendered into a click-through, topmost, `WDA_EXCLUDEFROMCAPTURE` overlay (DirectComposition swapchain); Raw Input hotkeys; tray icon.
-- Settings GUI (egui) runs as a separate process (`rustzoom.exe settings`) that only edits `%APPDATA%\rustzoom\config.toml`. The main process watches and reloads that file, so the two never share an event loop.
+- `crates/rustzoom-core`: platform-independent logic: config model + TOML load/save + sanitizing, zoom state machine (hold/toggle/levels), scope/crop geometry, hotkey display names, EN/DE texts (`i18n`, a macro guarantees both languages). No Windows dependencies, unit-tested on Linux/WSL. Put as much logic here as possible.
+- `crates/rustzoom`: the Windows binary. Windows-only code sits behind `#[cfg(windows)]`, and Windows deps go under `[target.'cfg(windows)'.dependencies]`, so the workspace still compiles and tests on Linux.
+
+One process, two threads (ADR 0003):
+
+- **Main thread, `gui.rs`:** eframe/egui (glow) main window. Holds the `Config`, sends every change to the engine as `Command::ApplyConfig`, saves `%APPDATA%\rustzoom\config.toml` (debounced). Closing the window drops the `EngineHandle`, which stops the engine.
+- **Engine thread, `engine.rs`:** own Win32 message loop. Owns the overlay window (`overlay.rs`: click-through, topmost, no-activate, `WDA_EXCLUDEFROMCAPTURE`), Raw Input (`input.rs`, `RIDEV_INPUTSINK`), Windows.Graphics.Capture of the primary monitor (`capture.rs`, frames announced via `WM_APP_FRAME`) and Direct2D-on-DirectComposition rendering (`render.rs`, ADR 0002). Commands arrive over an mpsc channel plus a `WM_APP_COMMAND` wake-up; events (`Bound`, `Stopped`, …) go back through an `EventSink` that also calls `request_repaint()`.
+- The engine must be spawned inside the eframe app-creator callback: Raw Input registration is per process and winit registers once at event-loop creation, so the engine has to register after it.
 
 ## Commands
 

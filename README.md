@@ -3,7 +3,7 @@
 Hotkey-triggered zoom for the game [Rust](https://rust.facepunch.com/) on Windows 11.
 rustzoom shows a magnified "scope" of the screen center as an overlay while you hold (or toggle) a key.
 
-> **Status:** early development. The MVP works: hold mouse button 4 to zoom (3×), nothing is configurable yet.
+> **Status:** early development. Zoom, main window and settings work; no release yet.
 
 ## How it works
 
@@ -14,15 +14,18 @@ magnified overlay on top.
 - Rust must run in **borderless windowed** mode.
 - Whether zoom tools are allowed is up to each server's rules. Use at your own risk.
 
-## Trying the MVP
+## Usage
 
-1. Set Rust to **borderless windowed** (Options → Screen → Display mode).
+1. Set Rust to **borderless** (Options → Screen → Display mode).
 2. Build (`cargo build --release` on Windows, or `cargo xwin build --release --target x86_64-pc-windows-msvc`
-   from WSL/Linux) and start `rustzoom.exe`. Nothing appears, it runs in the background.
-3. Hold **mouse button 4** to show the zoom scope, release to hide it.
-4. **Ctrl+Alt+End** quits.
+   from WSL/Linux) and start `rustzoom.exe`. The main window opens.
+3. Hold **mouse button 4** (default) to zoom. In the window you can switch the zoom on/off, bind any key or
+   mouse button (click "Change…", then press it), choose hold or toggle, set up to 5 zoom levels with a key to
+   cycle them, and change scope size, border and language (English/German).
+4. Minimize the window to keep zooming; close it to quit.
 
-Log file: `%LOCALAPPDATA%\rustzoom\rustzoom.log` (set `RUSTZOOM_LOG=debug` for more detail).
+Settings: `%APPDATA%\rustzoom\config.toml`. Log: `%LOCALAPPDATA%\rustzoom\rustzoom.log`
+(set `RUSTZOOM_LOG=debug` for more detail).
 
 ## License
 
