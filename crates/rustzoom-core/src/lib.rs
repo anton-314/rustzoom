@@ -4,4 +4,6 @@
 //! the hotkey/zoom state machine and the geometry of the magnified region.
 //! This crate must not depend on any Windows API.
 
+pub mod config;
 pub mod geometry;
+pub mod zoom;
