@@ -1,6 +1,6 @@
 # 0002: Main window with on/off and settings
 
-Status: in progress
+Status: done
 
 ## Goal
 rustzoom opens a main window where the user can switch the zoom on/off and configure it: zoom hotkey
@@ -73,6 +73,11 @@ Expected results in *italics*. Carried over from plan 0001: also check 9–14 th
 10. "Change…", press `Esc`. *Binding unchanged.*
 11. Drag the size slider. *Scope preview appears in the screen center and disappears ~1.5 s after letting go.*
 12. In Rust (borderless): zoom, cycle levels, game input unaffected.
+
+## Results
+- 2026-10-16, user on Windows 11: "everything works": main window, on/off, settings apply live and persist,
+  key binding (incl. Esc cancel), preview, language switch, clean exit.
+- FPS numbers, a longer EAC session and exclusive fullscreen were not reported separately; still worth checking.
 
 ## Open questions
 - Window icon: not part of this plan (needs an icon asset), currently the default icon.
