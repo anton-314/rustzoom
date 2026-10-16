@@ -27,7 +27,7 @@ use windows::Win32::Graphics::Dxgi::Common::{
     DXGI_ALPHA_MODE_PREMULTIPLIED, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_SAMPLE_DESC,
 };
 use windows::Win32::Graphics::Dxgi::{
-    DXGI_PRESENT, DXGI_SWAP_CHAIN_DESC1, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
+    DXGI_PRESENT, DXGI_SWAP_CHAIN_DESC1, DXGI_SWAP_CHAIN_FLAG, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
     DXGI_USAGE_RENDER_TARGET_OUTPUT, IDXGIDevice, IDXGIFactory2, IDXGISurface, IDXGISwapChain1,
 };
 use windows::core::Interface;
@@ -47,7 +47,7 @@ pub struct Renderer {
         IDCompositionTarget,
         IDCompositionVisual,
     ),
-    _target: ID2D1Bitmap1,
+    target: Option<ID2D1Bitmap1>,
     d3d: ID3D11Device,
 }
 
@@ -89,25 +89,7 @@ impl Renderer {
                 .CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?
         };
 
-        // With the flip model, buffer 0 is always the current back buffer, so one target bitmap
-        // is enough.
-        let target_props = D2D1_BITMAP_PROPERTIES1 {
-            pixelFormat: D2D1_PIXEL_FORMAT {
-                format: DXGI_FORMAT_B8G8R8A8_UNORM,
-                alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
-            },
-            dpiX: 96.0,
-            dpiY: 96.0,
-            bitmapOptions: D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
-            colorContext: ManuallyDrop::new(None),
-        };
-        // SAFETY: see above.
-        let target = unsafe {
-            let surface: IDXGISurface = swapchain.GetBuffer(0)?;
-            let target = context.CreateBitmapFromDxgiSurface(&surface, Some(&target_props))?;
-            context.SetTarget(&target);
-            target
-        };
+        let target = create_target(&context, &swapchain)?;
 
         // SAFETY: see above; `hwnd` is a valid window of this process.
         let composition = unsafe {
@@ -129,9 +111,31 @@ impl Renderer {
             swapchain,
             border,
             _composition: composition,
-            _target: target,
+            target: Some(target),
             d3d,
         })
+    }
+
+    /// Changes the surface to `size`×`size` pixels.
+    pub fn resize(&mut self, size: i32) -> Result<()> {
+        // The swapchain buffers can only be resized once nothing references them.
+        // SAFETY: our own context; unsetting the target releases its reference to the buffer.
+        unsafe { self.context.SetTarget(None) };
+        self.target = None;
+        // SAFETY: no outstanding references to the buffers (see above).
+        unsafe {
+            self.swapchain.ResizeBuffers(
+                0,
+                size as u32,
+                size as u32,
+                DXGI_FORMAT_B8G8R8A8_UNORM,
+                DXGI_SWAP_CHAIN_FLAG(0),
+            )
+        }
+        .context("ResizeBuffers")?;
+        self.target = Some(create_target(&self.context, &self.swapchain)?);
+        self.size = size as f32;
+        Ok(())
     }
 
     /// The device capture textures must come from.
@@ -225,6 +229,31 @@ impl Renderer {
         unsafe { self.swapchain.Present(0, DXGI_PRESENT(0)) }
             .ok()
             .context("Present")
+    }
+}
+
+/// Wraps the swapchain's back buffer as Direct2D target and sets it on `context`. With the flip
+/// model, buffer 0 is always the current back buffer, so one target bitmap is enough.
+fn create_target(
+    context: &ID2D1DeviceContext,
+    swapchain: &IDXGISwapChain1,
+) -> Result<ID2D1Bitmap1> {
+    let props = D2D1_BITMAP_PROPERTIES1 {
+        pixelFormat: D2D1_PIXEL_FORMAT {
+            format: DXGI_FORMAT_B8G8R8A8_UNORM,
+            alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
+        },
+        dpiX: 96.0,
+        dpiY: 96.0,
+        bitmapOptions: D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
+        colorContext: ManuallyDrop::new(None),
+    };
+    // SAFETY: buffer 0 of a valid swapchain, wrapped on the same device.
+    unsafe {
+        let surface: IDXGISurface = swapchain.GetBuffer(0)?;
+        let target = context.CreateBitmapFromDxgiSurface(&surface, Some(&props))?;
+        context.SetTarget(&target);
+        Ok(target)
     }
 }
 

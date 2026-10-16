@@ -8,10 +8,11 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DestroyWindow, LWA_ALPHA, RegisterClassExW, SW_HIDE, SW_SHOWNOACTIVATE,
-    SetLayeredWindowAttributes, SetWindowDisplayAffinity, ShowWindow, WDA_EXCLUDEFROMCAPTURE,
-    WNDCLASSEXW, WNDPROC, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP,
-    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
+    CreateWindowExW, DestroyWindow, HWND_TOPMOST, LWA_ALPHA, RegisterClassExW, SW_HIDE,
+    SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SetLayeredWindowAttributes, SetWindowDisplayAffinity,
+    SetWindowPos, ShowWindow, WDA_EXCLUDEFROMCAPTURE, WNDCLASSEXW, WNDPROC, WS_EX_LAYERED,
+    WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+    WS_EX_TRANSPARENT, WS_POPUP,
 };
 use windows::core::w;
 
@@ -74,6 +75,25 @@ impl Overlay {
 
     pub fn hwnd(&self) -> HWND {
         self.hwnd
+    }
+
+    /// Moves/resizes the window to `rect` (virtual-screen coordinates).
+    pub fn set_rect(&self, rect: Rect) {
+        // SAFETY: `hwnd` is valid for the lifetime of `self`.
+        let result = unsafe {
+            SetWindowPos(
+                self.hwnd,
+                Some(HWND_TOPMOST),
+                rect.x,
+                rect.y,
+                rect.width,
+                rect.height,
+                SWP_NOACTIVATE,
+            )
+        };
+        if let Err(err) = result {
+            tracing::warn!("SetWindowPos failed: {err}");
+        }
     }
 
     pub fn set_visible(&self, visible: bool) {
