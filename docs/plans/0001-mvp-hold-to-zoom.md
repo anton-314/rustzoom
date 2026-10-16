@@ -43,7 +43,7 @@ screen center magnified 3×. Releasing the button hides it. The user can run thi
 - [x] 4. Raw Input → `ZoomController` → overlay show/hide. Overlay is drawn as a solid semi-transparent circle
        (no capture yet) so input and window behavior can be tested in isolation.
 - [x] 5. Capture + D2D rendering of the magnified crop into the round scope.
-- [ ] 6. README: "Trying the MVP" section (build, run, hotkeys, borderless requirement, log location).
+- [x] 6. README: "Trying the MVP" section (build, run, hotkeys, borderless requirement, log location).
 
 Each step ends with a green `/verify` (including the xwin build) and one commit. After steps 4 and 5 the
 user gets a test build.
