@@ -37,7 +37,7 @@ screen center magnified 3×. Releasing the button hides it. The user can run thi
 - [x] 2. `rustzoom-core::zoom`: state machine `ZoomController` (modes Hold/Toggle, levels, `on_press`/`on_release`/
        `cycle_level` → `ZoomState { active, factor }`), `Config` struct with MVP defaults, `Hotkey` enum
        (keyboard VK or mouse button).
-- [ ] 3. App bootstrap: deps (`windows`, `tracing`, `tracing-subscriber`, `tracing-appender`), DPI awareness,
+- [x] 3. App bootstrap: deps (`windows`, `tracing`, `tracing-subscriber`, `tracing-appender`), DPI awareness,
        single instance, logging, overlay window with all styles and display affinity, message loop,
        `Ctrl+Alt+End` exits.
 - [ ] 4. Raw Input → `ZoomController` → overlay show/hide. Overlay is drawn as a solid semi-transparent circle
