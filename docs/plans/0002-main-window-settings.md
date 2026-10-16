@@ -35,7 +35,7 @@ and the UI language (English/German). Settings apply immediately and are saved.
 - [x] 3. Engine on its own thread: move app state into `engine.rs`, command channel (`ApplyConfig`,
        `SetEnabled`, `Quit`) with wake-up message, cycle-level hotkey, stop/start capture on off/on, live
        resize. `main` still has no GUI: loads `config.toml`, runs the engine, so it can be tested by editing the file.
-- [ ] 4. Main window (eframe): on/off switch, mode, levels (add/remove, sliders), size, border, language;
+- [x] 4. Main window (eframe): on/off switch, mode, levels (add/remove, sliders), size, border, language;
        applies via commands, saves config, closing quits. Engine started from the app-creator callback.
 - [ ] 5. Key binding for zoom and cycle hotkey (binding mode in engine, events back to GUI), preview after changes.
 - [ ] 6. Docs: README (usage), CLAUDE.md architecture section, plan results.

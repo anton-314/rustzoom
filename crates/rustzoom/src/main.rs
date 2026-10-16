@@ -5,6 +5,8 @@ mod capture;
 #[cfg(windows)]
 mod engine;
 #[cfg(windows)]
+mod gui;
+#[cfg(windows)]
 mod input;
 #[cfg(windows)]
 mod instance;
@@ -60,7 +62,7 @@ fn run() -> anyhow::Result<()> {
         path.display()
     );
 
-    engine::EngineHandle::spawn(loaded.config)?.join();
+    gui::run(loaded.config, path)?;
     tracing::info!("rustzoom exiting");
     Ok(())
 }

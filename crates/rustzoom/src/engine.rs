@@ -13,12 +13,9 @@ use tracing::{debug, error, info, warn};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::Graphics::Gdi::HMONITOR;
 use windows::Win32::System::WinRT::{RO_INIT_SINGLETHREADED, RoInitialize};
-use windows::Win32::UI::Input::KeyboardAndMouse::{
-    MOD_ALT, MOD_CONTROL, MOD_NOREPEAT, RegisterHotKey, VK_END,
-};
 use windows::Win32::UI::WindowsAndMessaging::{
     DefWindowProcW, DispatchMessageW, GetMessageW, MSG, PostMessageW, PostQuitMessage,
-    TranslateMessage, WM_APP, WM_HOTKEY, WM_INPUT,
+    TranslateMessage, WM_APP, WM_INPUT,
 };
 
 use crate::capture::{Capture, WM_APP_FRAME};
@@ -28,11 +25,9 @@ use crate::render::Renderer;
 
 /// Posted to the engine window after a [`Command`] was queued.
 const WM_APP_COMMAND: u32 = WM_APP + 2;
-const EXIT_HOTKEY_ID: i32 = 1;
 
 pub enum Command {
     /// Replace the whole configuration (values are sanitized by the engine).
-    #[expect(dead_code, reason = "sent by the main window (plan 0002, step 4)")]
     ApplyConfig(Config),
     Quit,
 }
@@ -90,11 +85,6 @@ impl EngineHandle {
         }
     }
 
-    /// Blocks until the engine thread has ended on its own.
-    pub fn join(mut self) {
-        self.wait();
-    }
-
     fn wait(&mut self) {
         if let Some(thread) = self.thread.take()
             && thread.join().is_err()
@@ -143,16 +133,6 @@ impl Engine {
         let overlay = Overlay::create(layout.window, Some(wndproc))?;
         let renderer = Renderer::new(overlay.hwnd(), layout.window.width)?;
 
-        // SAFETY: the window belongs to this thread; the id is unique within it.
-        unsafe {
-            RegisterHotKey(
-                Some(overlay.hwnd()),
-                EXIT_HOTKEY_ID,
-                MOD_CONTROL | MOD_ALT | MOD_NOREPEAT,
-                u32::from(VK_END.0),
-            )
-        }
-        .context("RegisterHotKey Ctrl+Alt+End")?;
         input::register(overlay.hwnd())?;
 
         let window = overlay.hwnd().0 as isize;
@@ -311,11 +291,6 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
         }
         WM_APP_COMMAND => {
             with_engine(Engine::on_commands);
-            LRESULT(0)
-        }
-        WM_HOTKEY if wparam.0 == EXIT_HOTKEY_ID as usize => {
-            // SAFETY: called on the engine thread.
-            unsafe { PostQuitMessage(0) };
             LRESULT(0)
         }
         // SAFETY: default handling for everything else, arguments passed through unchanged.
