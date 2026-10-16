@@ -6,4 +6,5 @@
 
 pub mod config;
 pub mod geometry;
+pub mod names;
 pub mod zoom;

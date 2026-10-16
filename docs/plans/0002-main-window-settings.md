@@ -29,7 +29,7 @@ and the UI language (English/German). Settings apply immediately and are saved.
 - **Anti-cheat check (ADR 0001):** unchanged, binding mode only reads Raw Input. ✔
 
 ## Steps
-- [ ] 1. core: serde for `Config` (+ `enabled`, `language`, `cycle_hotkey`), `Config::sanitized()`,
+- [x] 1. core: serde for `Config` (+ `enabled`, `language`, `cycle_hotkey`), `Config::sanitized()`,
        TOML load/save functions (path passed in, atomic write, `.bak` on parse error), VK/mouse display names.
 - [ ] 2. core: `i18n` with `Language` and `Text`, `text(lang, Text)`.
 - [ ] 3. Engine on its own thread: move app state into `engine.rs`, command channel (`ApplyConfig`,

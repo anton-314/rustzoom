@@ -1,7 +1,10 @@
 //! Hotkey → zoom state machine.
 
+use serde::{Deserialize, Serialize};
+
 /// How the hotkey activates the zoom.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ZoomMode {
     /// Zoomed while the hotkey is held down.
     Hold,
