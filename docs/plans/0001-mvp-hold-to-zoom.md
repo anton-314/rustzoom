@@ -32,7 +32,7 @@ screen center magnified 3×. Releasing the button hides it. The user can run thi
 - **Anti-cheat check (ADR 0001):** no game process access, no hooks, no input injection. ✔
 
 ## Steps
-- [ ] 1. `rustzoom-core::geometry`: scope rect centered on a monitor rect, source crop rect for a factor,
+- [x] 1. `rustzoom-core::geometry`: scope rect centered on a monitor rect, source crop rect for a factor,
        rounding to whole pixels.
 - [ ] 2. `rustzoom-core::zoom`: state machine `ZoomController` (modes Hold/Toggle, levels, `on_press`/`on_release`/
        `cycle_level` → `ZoomState { active, factor }`), `Config` struct with MVP defaults, `Hotkey` enum
