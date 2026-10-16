@@ -1,6 +1,6 @@
 # 0001: MVP – hold mouse button 4 to show a round zoom scope
 
-Status: in progress
+Status: done
 
 ## Goal
 While mouse button 4 (XButton1) is held, a round scope in the center of the primary monitor shows the
@@ -81,9 +81,12 @@ a terminal (debug, with console). Expected results in *italics*.
 13. Play ~10 minutes with rustzoom running. *No EAC kick/warning.*
 14. Switch Rust to **Fullscreen** (exclusive). *Scope is probably not visible – report what happens.*
 
+## Results
+- 2026-10-16, user on Windows 11: test circle appears on hold (3); magnified zoom works (8);
+  **no yellow capture border** with `IsBorderRequired = false` on the unpackaged exe (7).
+- Not yet reported: 1, 2, 4–6, 9–14 (in-game, FPS, EAC, exclusive fullscreen). Carry over to the next test round.
+
 ## Open questions
-- Does `IsBorderRequired = false` work for an unpackaged exe without the consent prompt? (manual test 7)
-  If not: either accept the border, or only start the capture session while zoomed (border only during zoom,
-  but ~tens of ms delay on the first frame) → decide after the test.
+- ~~Capture border for unpackaged exe~~ → resolved, not shown.
 - Click-through with `WS_EX_LAYERED` + `WS_EX_NOREDIRECTIONBITMAP` (manual test 4); fallback: no layered
   style and `WM_NCHITTEST → HTTRANSPARENT`.
