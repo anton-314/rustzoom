@@ -3,11 +3,15 @@
 #[cfg(windows)]
 mod app;
 #[cfg(windows)]
+mod input;
+#[cfg(windows)]
 mod instance;
 #[cfg(windows)]
 mod logging;
 #[cfg(windows)]
 mod overlay;
+#[cfg(windows)]
+mod render;
 
 #[cfg(windows)]
 fn main() -> std::process::ExitCode {

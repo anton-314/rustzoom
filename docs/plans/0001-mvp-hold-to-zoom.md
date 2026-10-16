@@ -40,7 +40,7 @@ screen center magnified 3×. Releasing the button hides it. The user can run thi
 - [x] 3. App bootstrap: deps (`windows`, `tracing`, `tracing-subscriber`, `tracing-appender`), DPI awareness,
        single instance, logging, overlay window with all styles and display affinity, message loop,
        `Ctrl+Alt+End` exits.
-- [ ] 4. Raw Input → `ZoomController` → overlay show/hide. Overlay is drawn as a solid semi-transparent circle
+- [x] 4. Raw Input → `ZoomController` → overlay show/hide. Overlay is drawn as a solid semi-transparent circle
        (no capture yet) so input and window behavior can be tested in isolation.
 - [ ] 5. Capture + D2D rendering of the magnified crop into the round scope.
 - [ ] 6. README: "Trying the MVP" section (build, run, hotkeys, borderless requirement, log location).

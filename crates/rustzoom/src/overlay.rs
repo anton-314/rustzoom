@@ -8,10 +8,10 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DestroyWindow, LWA_ALPHA, RegisterClassExW, SetLayeredWindowAttributes,
-    SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE, WNDCLASSEXW, WNDPROC, WS_EX_LAYERED,
-    WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
-    WS_EX_TRANSPARENT, WS_POPUP,
+    CreateWindowExW, DestroyWindow, LWA_ALPHA, RegisterClassExW, SW_HIDE, SW_SHOWNOACTIVATE,
+    SetLayeredWindowAttributes, SetWindowDisplayAffinity, ShowWindow, WDA_EXCLUDEFROMCAPTURE,
+    WNDCLASSEXW, WNDPROC, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP,
+    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
 };
 use windows::core::w;
 
@@ -74,6 +74,13 @@ impl Overlay {
 
     pub fn hwnd(&self) -> HWND {
         self.hwnd
+    }
+
+    pub fn set_visible(&self, visible: bool) {
+        let cmd = if visible { SW_SHOWNOACTIVATE } else { SW_HIDE };
+        // SAFETY: `hwnd` is valid for the lifetime of `self`. The return value is the previous
+        // visibility, not an error.
+        let _ = unsafe { ShowWindow(self.hwnd, cmd) };
     }
 }
 
