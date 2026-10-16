@@ -1,6 +1,6 @@
 # ADR 0001: Tech stack and zoom approach
 
-Status: accepted (2026-10-16)
+Status: accepted (2026-10-16). Settings-process and tray parts superseded by ADR 0003.
 
 ## Context
 
