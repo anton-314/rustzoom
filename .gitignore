@@ -1,0 +1,19 @@
+# Build output
+/target/
+/dist/
+
+# Claude Code: personal settings stay local, shared ones (.claude/settings.json, skills) are committed
+.claude/settings.local.json
+.claude/worktrees/
+
+# Editors / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Runtime artefacts
+*.log

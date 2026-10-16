@@ -1,0 +1,9 @@
+# Portable .exe without the VC++ redistributable.
+[target.x86_64-pc-windows-msvc]
+# /IGNORE:4099: static CRT ships without PDBs, the warning is noise.
+rustflags = ["-C", "target-feature=+crt-static", "-C", "link-arg=/IGNORE:4099"]
+
+[alias]
+# Lint the Windows code paths from WSL/Linux (no linker needed for clippy itself).
+wclippy = "clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings"
+lint = "clippy --workspace --all-targets -- -D warnings"

@@ -1,0 +1,16 @@
+[package]
+name = "rustzoom"
+description = "Hotkey-triggered scope overlay that magnifies the screen center in the game Rust"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+rustzoom-core = { path = "../rustzoom-core" }
+
+[target.'cfg(windows)'.dependencies]
+
+[lints]
+workspace = true

@@ -1,0 +1,8 @@
+#!/bin/sh
+# Strips AI attribution (Claude co-author trailers, "Generated with Claude Code", session links)
+# from every commit message. Enabled via: git config core.hooksPath .githooks
+sed -i -E \
+  -e '/^Co-Authored-By:.*(Claude|anthropic\.com)/Id' \
+  -e '/Generated with \[?Claude Code/Id' \
+  -e '/^Claude-Session:/Id' \
+  "$1"

@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo lint
+      - run: cargo test --workspace
+      - run: cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rustzoom-${{ github.sha }}
+          path: target/release/rustzoom.exe
