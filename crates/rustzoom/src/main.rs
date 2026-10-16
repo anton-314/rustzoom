@@ -3,6 +3,8 @@
 #[cfg(windows)]
 mod app;
 #[cfg(windows)]
+mod capture;
+#[cfg(windows)]
 mod input;
 #[cfg(windows)]
 mod instance;

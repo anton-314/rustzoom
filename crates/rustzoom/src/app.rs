@@ -4,10 +4,11 @@ use std::cell::RefCell;
 
 use anyhow::{Context, Result};
 use rustzoom_core::config::Config;
-use rustzoom_core::geometry::scope_layout;
+use rustzoom_core::geometry::{Rect, scope_layout};
 use rustzoom_core::zoom::{ZoomController, ZoomState};
 use tracing::{debug, info, warn};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::System::WinRT::{RO_INIT_SINGLETHREADED, RoInitialize};
 use windows::Win32::UI::HiDpi::{
     DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext,
 };
@@ -19,6 +20,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WM_HOTKEY, WM_INPUT,
 };
 
+use crate::capture::{Capture, WM_APP_FRAME};
 use crate::input::{self, InputEvent};
 use crate::overlay::{self, Overlay};
 use crate::render::Renderer;
@@ -32,10 +34,11 @@ thread_local! {
 
 struct App {
     config: Config,
+    monitor: Rect,
     zoom: ZoomController,
     overlay: Overlay,
     renderer: Renderer,
-    visible: bool,
+    capture: Capture,
 }
 
 impl App {
@@ -48,20 +51,32 @@ impl App {
         self.apply(state);
     }
 
-    fn apply(&mut self, state: ZoomState) {
-        if state.active == self.visible {
-            return;
+    fn on_frame(&mut self) {
+        self.capture.update();
+        let state = self.zoom.state();
+        if state.active {
+            self.draw(state);
         }
+    }
+
+    fn apply(&mut self, state: ZoomState) {
         debug!(?state, "zoom changed");
         if state.active {
-            // Draw before showing, so the window never shows a stale frame.
-            if let Err(err) = self.renderer.draw_test_circle(self.config.border_width) {
-                warn!("drawing failed: {err:#}");
-                return;
-            }
+            // Draw before showing, so the window never shows a stale image.
+            self.draw(state);
         }
         self.overlay.set_visible(state.active);
-        self.visible = state.active;
+    }
+
+    fn draw(&self, state: ZoomState) {
+        let source = scope_layout(self.monitor, self.config.scope_diameter, state.factor).source;
+        let frame = self.capture.latest_texture();
+        if let Err(err) = self
+            .renderer
+            .draw(frame.as_ref(), source, self.config.border_width)
+        {
+            warn!("drawing failed: {err:#}");
+        }
     }
 }
 
@@ -70,12 +85,16 @@ pub fn run() -> Result<()> {
     // SAFETY: called once at startup, before any window exists.
     unsafe { SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) }
         .context("SetProcessDpiAwarenessContext")?;
+    // WinRT (Windows.Graphics.Capture) on this thread.
+    // SAFETY: once per thread, before any WinRT call.
+    unsafe { RoInitialize(RO_INIT_SINGLETHREADED) }.context("RoInitialize")?;
 
     let config = Config::default();
-    let monitor = overlay::primary_monitor()?;
+    let (hmonitor, monitor) = overlay::primary_monitor()?;
     let layout = scope_layout(monitor, config.scope_diameter, config.levels[0]);
     let overlay = Overlay::create(layout.window, Some(wndproc))?;
     let renderer = Renderer::new(overlay.hwnd(), layout.window.width)?;
+    let capture = Capture::start(renderer.device(), hmonitor, overlay.hwnd())?;
 
     // SAFETY: the window belongs to this thread; the id is unique within it.
     unsafe {
@@ -98,10 +117,11 @@ pub fn run() -> Result<()> {
     let zoom = ZoomController::new(config.mode, config.levels.clone());
     APP.set(Some(App {
         config,
+        monitor,
         zoom,
         overlay,
         renderer,
-        visible: false,
+        capture,
     }));
     run_message_loop();
     // Tear down windows and GPU objects while the thread is still fully alive.
@@ -144,6 +164,10 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
             // DefWindowProc must still see WM_INPUT to free the raw input buffer.
             // SAFETY: arguments passed through unchanged.
             unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+        }
+        WM_APP_FRAME => {
+            with_app(App::on_frame);
+            LRESULT(0)
         }
         WM_HOTKEY if wparam.0 == EXIT_HOTKEY_ID as usize => {
             // SAFETY: called on the message-loop thread.

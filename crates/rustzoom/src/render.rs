@@ -3,19 +3,22 @@
 use std::mem::ManuallyDrop;
 
 use anyhow::{Context, Result};
+use rustzoom_core::geometry::Rect;
 use windows::Win32::Foundation::{HMODULE, HWND};
 use windows::Win32::Graphics::Direct2D::Common::{
     D2D1_ALPHA_MODE_PREMULTIPLIED, D2D1_COLOR_F, D2D1_PIXEL_FORMAT,
 };
 use windows::Win32::Graphics::Direct2D::{
-    D2D1_BITMAP_OPTIONS_CANNOT_DRAW, D2D1_BITMAP_OPTIONS_TARGET, D2D1_BITMAP_PROPERTIES1,
-    D2D1_DEVICE_CONTEXT_OPTIONS_NONE, D2D1_ELLIPSE, D2D1_FACTORY_OPTIONS,
-    D2D1_FACTORY_TYPE_SINGLE_THREADED, D2D1CreateFactory, ID2D1Bitmap1, ID2D1DeviceContext,
-    ID2D1Factory1, ID2D1SolidColorBrush,
+    D2D1_BITMAP_BRUSH_PROPERTIES1, D2D1_BITMAP_OPTIONS_CANNOT_DRAW, D2D1_BITMAP_OPTIONS_NONE,
+    D2D1_BITMAP_OPTIONS_TARGET, D2D1_BITMAP_PROPERTIES1, D2D1_BRUSH_PROPERTIES,
+    D2D1_DEVICE_CONTEXT_OPTIONS_NONE, D2D1_ELLIPSE, D2D1_EXTEND_MODE_CLAMP, D2D1_FACTORY_OPTIONS,
+    D2D1_FACTORY_TYPE_SINGLE_THREADED, D2D1_INTERPOLATION_MODE_LINEAR, D2D1CreateFactory,
+    ID2D1Bitmap1, ID2D1BitmapBrush1, ID2D1DeviceContext, ID2D1Factory1, ID2D1SolidColorBrush,
 };
 use windows::Win32::Graphics::Direct3D::{D3D_DRIVER_TYPE_HARDWARE, D3D_FEATURE_LEVEL_11_0};
 use windows::Win32::Graphics::Direct3D11::{
     D3D11_CREATE_DEVICE_BGRA_SUPPORT, D3D11_SDK_VERSION, D3D11CreateDevice, ID3D11Device,
+    ID3D11Texture2D,
 };
 use windows::Win32::Graphics::DirectComposition::{
     DCompositionCreateDevice, IDCompositionDevice, IDCompositionTarget, IDCompositionVisual,
@@ -28,18 +31,16 @@ use windows::Win32::Graphics::Dxgi::{
     DXGI_USAGE_RENDER_TARGET_OUTPUT, IDXGIDevice, IDXGIFactory2, IDXGISurface, IDXGISwapChain1,
 };
 use windows::core::Interface;
-use windows_numerics::Vector2;
+use windows_numerics::{Matrix3x2, Vector2};
 
 const TRANSPARENT: D2D1_COLOR_F = color(0.0, 0.0, 0.0, 0.0);
 const BORDER: D2D1_COLOR_F = color(0.08, 0.08, 0.08, 1.0);
-const TEST_FILL: D2D1_COLOR_F = color(1.0, 1.0, 1.0, 0.35);
 
 pub struct Renderer {
     size: f32,
     context: ID2D1DeviceContext,
     swapchain: IDXGISwapChain1,
     border: ID2D1SolidColorBrush,
-    test_fill: ID2D1SolidColorBrush,
     // Must stay alive for the swapchain to be shown in the window.
     _composition: (
         IDCompositionDevice,
@@ -47,7 +48,7 @@ pub struct Renderer {
         IDCompositionVisual,
     ),
     _target: ID2D1Bitmap1,
-    _d3d: ID3D11Device,
+    d3d: ID3D11Device,
 }
 
 impl Renderer {
@@ -120,38 +121,90 @@ impl Renderer {
         };
 
         // SAFETY: see above.
-        let (border, test_fill) = unsafe {
-            (
-                context.CreateSolidColorBrush(&BORDER, None)?,
-                context.CreateSolidColorBrush(&TEST_FILL, None)?,
-            )
-        };
+        let border = unsafe { context.CreateSolidColorBrush(&BORDER, None)? };
 
         Ok(Self {
             size: size as f32,
             context,
             swapchain,
             border,
-            test_fill,
             _composition: composition,
             _target: target,
-            _d3d: d3d,
+            d3d,
         })
     }
 
-    /// Placeholder until capture exists: a semi-transparent disc with the scope border.
-    pub fn draw_test_circle(&self, border_width: f32) -> Result<()> {
+    /// The device capture textures must come from.
+    pub fn device(&self) -> &ID3D11Device {
+        &self.d3d
+    }
+
+    /// Draws `source` (pixels of `frame`) scaled into the round scope, plus the border.
+    /// Without a frame only the border is drawn.
+    pub fn draw(
+        &self,
+        frame: Option<&ID3D11Texture2D>,
+        source: Rect,
+        border_width: f32,
+    ) -> Result<()> {
         let ellipse = self.scope_ellipse(border_width);
+        let fill = frame
+            .map(|frame| self.zoom_brush(frame, source))
+            .transpose()?;
         // SAFETY: drawing on our own device context between BeginDraw/EndDraw.
         unsafe {
             self.context.BeginDraw();
             self.context.Clear(Some(&TRANSPARENT));
-            self.context.FillEllipse(&ellipse, &self.test_fill);
+            if let Some(fill) = &fill {
+                self.context.FillEllipse(&ellipse, fill);
+            }
             self.context
                 .DrawEllipse(&ellipse, &self.border, border_width, None);
             self.context.EndDraw(None, None)?;
         }
         self.present()
+    }
+
+    /// A brush that paints `frame` so that `source` exactly covers the scope surface.
+    fn zoom_brush(&self, frame: &ID3D11Texture2D, source: Rect) -> Result<ID2D1BitmapBrush1> {
+        let scale = self.size / source.width as f32;
+        let bitmap_props = D2D1_BITMAP_PROPERTIES1 {
+            pixelFormat: D2D1_PIXEL_FORMAT {
+                format: DXGI_FORMAT_B8G8R8A8_UNORM,
+                alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
+            },
+            dpiX: 96.0,
+            dpiY: 96.0,
+            bitmapOptions: D2D1_BITMAP_OPTIONS_NONE,
+            colorContext: ManuallyDrop::new(None),
+        };
+        let brush_props = D2D1_BITMAP_BRUSH_PROPERTIES1 {
+            extendModeX: D2D1_EXTEND_MODE_CLAMP,
+            extendModeY: D2D1_EXTEND_MODE_CLAMP,
+            interpolationMode: D2D1_INTERPOLATION_MODE_LINEAR,
+        };
+        let transform = D2D1_BRUSH_PROPERTIES {
+            opacity: 1.0,
+            transform: Matrix3x2 {
+                M11: scale,
+                M12: 0.0,
+                M21: 0.0,
+                M22: scale,
+                M31: -source.x as f32 * scale,
+                M32: -source.y as f32 * scale,
+            },
+        };
+        let surface: IDXGISurface = frame.cast()?;
+        // SAFETY: wraps the capture texture (same device) without copying; the bitmap and brush
+        // only live for this draw call.
+        unsafe {
+            let bitmap = self
+                .context
+                .CreateBitmapFromDxgiSurface(&surface, Some(&bitmap_props))?;
+            Ok(self
+                .context
+                .CreateBitmapBrush(&bitmap, Some(&brush_props), Some(&transform))?)
+        }
     }
 
     /// The scope circle, inset so the border stays inside the surface.
@@ -166,8 +219,10 @@ impl Renderer {
     }
 
     fn present(&self) -> Result<()> {
+        // Sync interval 0: no vsync wait in the message loop. The flip model + DWM composition
+        // never tears.
         // SAFETY: presenting our own swapchain.
-        unsafe { self.swapchain.Present(1, DXGI_PRESENT(0)) }
+        unsafe { self.swapchain.Present(0, DXGI_PRESENT(0)) }
             .ok()
             .context("Present")
     }

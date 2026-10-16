@@ -4,7 +4,7 @@ use anyhow::{Context, Result, bail};
 use rustzoom_core::geometry::Rect;
 use windows::Win32::Foundation::{COLORREF, HWND, POINT};
 use windows::Win32::Graphics::Gdi::{
-    GetMonitorInfoW, MONITOR_DEFAULTTOPRIMARY, MONITORINFO, MonitorFromPoint,
+    GetMonitorInfoW, HMONITOR, MONITOR_DEFAULTTOPRIMARY, MONITORINFO, MonitorFromPoint,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -91,9 +91,9 @@ impl Drop for Overlay {
     }
 }
 
-/// Bounds of the primary monitor in virtual-screen coordinates (physical pixels, the process is
-/// per-monitor DPI aware).
-pub fn primary_monitor() -> Result<Rect> {
+/// Handle and bounds of the primary monitor. Bounds are in virtual-screen coordinates (physical
+/// pixels, the process is per-monitor DPI aware).
+pub fn primary_monitor() -> Result<(HMONITOR, Rect)> {
     // SAFETY: plain query, MONITOR_DEFAULTTOPRIMARY always returns a valid monitor.
     let monitor = unsafe { MonitorFromPoint(POINT { x: 0, y: 0 }, MONITOR_DEFAULTTOPRIMARY) };
     let mut info = MONITORINFO {
@@ -105,5 +105,8 @@ pub fn primary_monitor() -> Result<Rect> {
         bail!("GetMonitorInfoW failed");
     }
     let r = info.rcMonitor;
-    Ok(Rect::new(r.left, r.top, r.right - r.left, r.bottom - r.top))
+    Ok((
+        monitor,
+        Rect::new(r.left, r.top, r.right - r.left, r.bottom - r.top),
+    ))
 }
